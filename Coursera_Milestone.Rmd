@@ -1,0 +1,157 @@
+
+
+---
+title: "Coursera: Data Science Capstone Project- Milestone Report"
+output: html_document
+---
+
+####The purpose of this report is to do basic exploratory analysis on the data set which we will use for our language model (next word predicton model)
+
+##### * Data can be found here: <https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip>
+
+##### * Full data set unzipped is: 548.0 MB
+##### * Data set comes in a number of different languages. We'll use the english set
+
+##### * Read in and Unzip Data File
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+#cache computations to speed up when we knit to html
+```
+
+```{r}
+
+library(RCurl)
+data_url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+if(!file.exists( "SwiftKey_data.zip")){
+  download.file(data_url, "SwiftKey_data.zip", method = "libcurl")
+
+# extract zip files
+unzip("SwiftKey_data.zip")
+}
+```
+
+####There are 3 data sets here.
+```{r}
+blogs<-readLines("~/final/en_US/en_US.blogs.txt", skipNul = TRUE, warn= FALSE)
+news<-readLines("~/final/en_US/en_US.news.txt", skipNul = TRUE, warn=FALSE)
+tweets<-readLines("~/final/en_US/en_US.twitter.txt", skipNul = TRUE, warn=FALSE)
+
+```
+
+```{r}
+#Read in and get file size and convert to MBs
+blogssize<-file.info("~/final/en_US/en_US.blogs.txt")$size/ 1024 ^ 2
+newssize<-file.info("~/final/en_US/en_US.news.txt")$size/ 1024 ^ 2
+tweetssize<-file.info("~/final/en_US/en_US.twitter.txt")$size/ 1024 ^ 2
+```
+
+####Size of each of the respective Files(in MBs):
+```{r}
+size<-c(blogssize,newssize,tweetssize)
+dfsize<-data.frame(size)
+row.names(dfsize) <- c("blogs size", "news size", "tweets size")
+dfsize
+```
+
+####Word Count:
+```{r}
+blogswc<-length(blogs)
+newswc<-length(news)
+tweetswc<-length(tweets)
+
+wc<-c(blogswc,newswc, tweetswc)
+dfwc<-data.frame(wc)
+row.names(dfwc) <- c("blogs wordcount", "news wordcount", "tweetswordcount")
+dfwc
+```
+
+***
+###Data Subset, Cleaning, and Tolkenizaion:
+
+####We are going to take and combine a small subset of data to work on because the full data set too big to do analysis on (memory allocation, processing, etc.), taking first thousand lines of each and combining them into a corpus.
+
+```{r}
+blogssub<-blogs[1:1000]
+newssub<-news[1:1000]
+tweetssub<- tweets[1:1000]
+corpussubset<-c(blogssub,newssub,tweetssub)
+cpsub<-corpussubset
+```
+
+```{r}
+suppressWarnings(require("RWeka"))
+suppressWarnings(require("tm"))
+
+#clean up sample corpus
+cpsubclean<-Corpus(VectorSource(cpsub))
+cpsubclean<-tm_map(cpsubclean, tolower)
+cpsubclean<-tm_map(cpsubclean, stripWhitespace)
+cpsubclean<-tm_map(cpsubclean, removePunctuation)
+cpsubclean<-tm_map(cpsubclean, removeNumbers)
+cpsubclean<-tm_map(cpsubclean, PlainTextDocument)
+
+#make ngrams 
+unigram<- function(x) NGramTokenizer(x, Weka_control(min=1, max=1))
+bigram<- function(x) NGramTokenizer(x, Weka_control(min=2, max=2))
+trigram<- function(x) NGramTokenizer(x, Weka_control(min=3, max=3))
+
+options(mc.cores=1) #hangs if you dont include this option on Mac OS
+
+tdmuni<- TermDocumentMatrix(cpsubclean, control=list(tokenize=unigram))
+tdmbi<- TermDocumentMatrix(cpsubclean, control=list(tokenize=bigram))
+tdmtri<- TermDocumentMatrix(cpsubclean, control=list(tokenize=trigram))
+
+```
+
+***
+
+###N-Grams:
+####We look to the most frequently occurring ngrams in our sample set, in this case, those with occurences more than 100x for unigram, 50x for bigram, 10x for trigram
+
+```{r}
+findFreqTerms(tdmuni, lowfreq=100)
+findFreqTerms(tdmbi, lowfreq=50)
+findFreqTerms(tdmtri, lowfreq=10)
+```
+
+###Plotting:
+```{r}
+suppressPackageStartupMessages(require("Rgraphviz"))
+```
+
+####Get the N-Grams ready to plot:
+```{r}
+unisum<-rowSums(as.matrix(tdmuni))
+bisum<-rowSums(as.matrix(tdmbi))
+trisum<-rowSums(as.matrix(tdmtri))
+
+#sort by decreasing
+unifreq<-sort(unisum, decreasing=TRUE)
+bifreq<-sort(bisum, decreasing=TRUE)
+trifreq<-sort(trisum, decreasing=TRUE)
+
+head(unifreq)
+head(bifreq)
+head(trifreq)
+
+suppressPackageStartupMessages(require("ggplot2"))
+
+unifreqdf<-data.frame("words"=names(head(unifreq, 25)), "freq"=head(unifreq, 25))
+ggplot(unifreqdf, aes(words, freq))+geom_point(color="blue", aes(size=freq))+ggtitle("Top 25 Most Frequent Unigrams")+coord_flip()+theme(text=element_text(size=20))
+
+bifreqdf<-data.frame("words"=names(head(bifreq, 25)), "freq"=head(bifreq, 25))
+ggplot(bifreqdf, aes(words, freq))+geom_point(color="red", aes(size=freq))+ggtitle("Top 25 Most Frequent Bigrams")+coord_flip()+theme(text=element_text(size=20))
+
+trifreqdf<-data.frame("words"=names(head(trifreq, 25)), "freq"=head(trifreq, 25))
+ggplot(trifreqdf, aes(words, freq))+geom_point(color="black", aes(size=freq))+ggtitle("Top 25 Most Frequent Trigrams")+coord_flip()+theme(text=element_text(size=20))
+
+```
+
+***
+
+####Next Steps:
+* Examine using Markov chains to help with "next word" prediction
+* Develop Shiny App around prediction model
+* Graduate from the Coursera Data Science Specialization
+* Conquer the World
