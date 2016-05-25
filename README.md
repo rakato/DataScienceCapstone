@@ -1,6 +1,7 @@
 # Data Science Capstone- Predicting the Next Word in a Sentence or Phrase
 
 Plan the Trade and then Trade the Plan:
+
 1. Download files
 2. Get Data info
 3. Subset Data for memory and ease of use
