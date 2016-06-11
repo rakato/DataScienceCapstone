@@ -10,5 +10,6 @@ Plan the Trade and then Trade the Plan:
 6. Use Ngrams table and NaiveBayes or Stupid Backoff 
 7. Make predicton
 8. Make Shiny App
+9. Go on to Fame and Fortune
 
 
